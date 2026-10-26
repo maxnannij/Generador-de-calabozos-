@@ -1,0 +1,1282 @@
+# PROMPT MAESTRO — DESARROLLO DE UN GENERADOR PROCEDURAL DE MAZMORRAS PROFESIONAL PARA JUEGOS DE ROL
+
+## 1. ROL Y OBJETIVO DEL PROYECTO
+
+Actúa como un equipo senior de desarrollo de videojuegos y software compuesto por:
+
+- Un arquitecto de software especializado en aplicaciones web.
+- Un desarrollador experto en generación procedural de mapas.
+- Un especialista en algoritmos geométricos, grafos y búsqueda de caminos.
+- Un desarrollador de herramientas para juegos de rol de mesa y VTT.
+- Un diseñador UX/UI especializado en software creativo.
+- Un ingeniero de QA especializado en pruebas automatizadas y detección de errores geométricos.
+- Un especialista en seguridad, rendimiento, accesibilidad y preparación de productos comerciales.
+
+Tu tarea es diseñar, programar, probar y documentar un **generador procedural de mazmorras 2D de calidad comercial**, inspirado en los principios generales de los generadores de mapas de juegos de rol, pero con implementación, diseño, código y recursos originales.
+
+El producto debe permitir generar mazmorras coherentes, visualmente atractivas, configurables, reproducibles y listas para utilizar en partidas de rol.
+
+No quiero una simple demostración visual, un prototipo descartable ni una página que genere mapas que solo parezcan correctos a primera vista.
+
+Quiero una aplicación funcional, mantenible, extensible y suficientemente robusta para comercializarla.
+
+### Regla principal
+
+La prioridad absoluta es la coherencia lógica y geométrica del mapa.
+
+Es preferible generar una mazmorra más sencilla que una compleja pero incorrecta. Nunca sacrifiques la validez de las habitaciones, paredes, puertas o conexiones para producir un mapa visualmente más interesante.
+
+No simules funciones que no funcionan. No utilices datos ficticios para aparentar que un sistema está terminado. No declares una generación válida sin haber ejecutado las comprobaciones correspondientes.
+
+---
+
+## 2. PROCEDIMIENTO DE TRABAJO OBLIGATORIO
+
+Antes de modificar o crear archivos:
+
+1. Inspecciona el proyecto existente, si lo hay.
+2. Identifica el lenguaje, el framework, la estructura de archivos, las dependencias y el sistema de construcción.
+3. Detecta qué funcionalidades ya funcionan y cuáles están incompletas.
+4. Conserva las funciones existentes que sean compatibles con los requisitos.
+5. No reemplaces todo el proyecto sin justificarlo técnicamente.
+6. Presenta un plan de implementación por etapas.
+7. Implementa las funcionalidades de manera incremental.
+8. Ejecuta pruebas después de cada etapa.
+9. Corrige los errores encontrados antes de avanzar.
+10. Finaliza con una revisión integral y una lista honesta de las funciones implementadas, limitaciones conocidas y pruebas ejecutadas.
+
+Si no existe un proyecto previo, crea una aplicación desde cero con una arquitectura adecuada para su distribución comercial.
+
+No te limites a entregar instrucciones o fragmentos de código: implementa los archivos reales del proyecto y comprueba su funcionamiento en el entorno disponible.
+
+Si falta una decisión no esencial, utiliza una opción técnica razonable y documenta la elección. No detengas el trabajo para preguntar por detalles que puedas resolver con criterio profesional.
+
+---
+
+# 3. ARQUITECTURA GENERAL
+
+La aplicación debe separar estrictamente los siguientes subsistemas:
+
+1. Motor de generación procedural.
+2. Modelo lógico del mapa.
+3. Sistema geométrico de paredes y aberturas.
+4. Sistema de puertas y conexiones.
+5. Sistema de pasillos.
+6. Sistema de elementos interiores.
+7. Sistema de validación.
+8. Motor de renderizado.
+9. Interfaz de configuración y edición.
+10. Importación, exportación y persistencia.
+11. Pruebas automatizadas.
+12. Gestión de errores y recuperación.
+
+Cada subsistema debe tener responsabilidades claras.
+
+El motor de renderizado nunca debe decidir dónde hay una puerta, qué habitación está conectada o dónde termina un pasillo. Debe limitarse a representar el modelo lógico.
+
+La interfaz gráfica tampoco debe modificar directamente las estructuras internas sin pasar por funciones de edición y validación.
+
+## Fuente única de verdad
+
+Toda la información lógica debe almacenarse en un modelo central del dungeon.
+
+Como mínimo, debe existir una representación de:
+
+- Dimensiones del mapa.
+- Escala y tamaño de las celdas.
+- Habitaciones.
+- Celdas y regiones transitables.
+- Pasillos.
+- Segmentos de pared.
+- Aberturas.
+- Puertas.
+- Conexiones entre regiones.
+- Escaleras y transiciones de nivel.
+- Elementos interiores.
+- Semilla aleatoria.
+- Configuración de generación.
+- Historial de modificaciones, si se implementa deshacer y rehacer.
+- Estado de validación.
+
+No mantengas copias independientes de la geometría que puedan desincronizarse.
+
+Por ejemplo, si una puerta se mueve, deben actualizarse de manera consistente su abertura, su conexión lógica, su representación gráfica y los resultados de validación afectados.
+
+---
+
+# 4. SISTEMA DE COORDENADAS Y MATRIZ
+
+Utiliza un sistema de coordenadas entero y consistente.
+
+La matriz lógica debe ser independiente de la resolución de pantalla, del zoom y del tamaño físico de los píxeles.
+
+Cada celda debe tener una coordenada entera `(x, y)` y un estado claramente definido.
+
+Como mínimo, contempla los siguientes conceptos:
+
+- Exterior del dungeon.
+- Espacio transitable de una habitación.
+- Espacio transitable de un pasillo.
+- Espacio no transitable.
+- Elementos sólidos.
+- Áreas reservadas para elementos especiales.
+- Regiones de diferentes niveles, cuando corresponda.
+
+No dependas exclusivamente de una enumeración de tipos de celda para representar toda la geometría. Una habitación, por ejemplo, debe tener una identidad propia, y una puerta debe ser una entidad que referencia una abertura concreta.
+
+Utiliza identificadores únicos para habitaciones, puertas, pasillos y demás entidades.
+
+## Convención de coordenadas
+
+Define una convención única:
+
+- El origen está en la esquina superior izquierda.
+- X aumenta hacia la derecha.
+- Y aumenta hacia abajo.
+- Las celdas ocupan áreas entre límites enteros consecutivos.
+- Las paredes se representan en los límites entre celdas, no como objetos flotantes dibujados arbitrariamente sobre ellas.
+
+Documenta esta convención y utilízala en todos los subsistemas.
+
+## Representación de las paredes
+
+Utiliza un modelo de bordes de celda o un sistema geométrico equivalente que permita distinguir inequívocamente:
+
+- Borde norte.
+- Borde sur.
+- Borde este.
+- Borde oeste.
+
+Dos celdas vecinas comparten un mismo límite geométrico.
+
+Por tanto, el límite compartido debe tener una representación canónica. No debe existir una pared independiente duplicada por cada una de las dos celdas.
+
+Esto es esencial para evitar:
+
+- Paredes dobles.
+- Líneas superpuestas.
+- Huecos involuntarios.
+- Puertas desalineadas.
+- Muros que atraviesan espacios transitables.
+- Diferencias entre lo que se ve y lo que realmente permite caminar.
+
+El renderizador puede aplicar grosores, sombras, texturas y estilos, pero la topología del muro debe provenir del modelo lógico.
+
+---
+
+# 5. GENERACIÓN DE HABITACIONES
+
+Implementa un generador de habitaciones configurable y determinista.
+
+Debe permitir definir:
+
+- Ancho y alto del mapa.
+- Cantidad mínima y máxima de habitaciones.
+- Tamaño mínimo y máximo de las habitaciones.
+- Proporción entre habitaciones pequeñas, medianas y grandes.
+- Separación mínima entre habitaciones.
+- Probabilidad de habitaciones rectangulares.
+- Probabilidad de formas especiales.
+- Porcentaje de superficie ocupada.
+- Cantidad de intentos de colocación.
+- Semilla aleatoria.
+- Margen mínimo respecto del límite del mapa.
+
+Empieza con habitaciones rectangulares, que son más sencillas de validar. Añade formas irregulares solamente cuando el modelo geométrico pueda soportarlas correctamente.
+
+## Algoritmo de colocación
+
+Para cada habitación candidata:
+
+1. Genera sus dimensiones de acuerdo con la configuración.
+2. Elige una posición candidata.
+3. Calcula todos sus límites y celdas ocupadas.
+4. Comprueba que esté dentro del mapa.
+5. Comprueba que no se superponga con habitaciones existentes.
+6. Comprueba que respete las separaciones requeridas.
+7. Comprueba que no invada pasillos, escaleras, paredes u otras estructuras incompatibles.
+8. Comprueba que pueda tener al menos una conexión válida si el diseño exige conectividad.
+9. Acepta la habitación solo si todas las restricciones obligatorias se cumplen.
+10. Registra la habitación en el modelo central.
+
+Si la posición no es válida, descártala y prueba otra.
+
+Establece un límite de intentos para impedir bucles infinitos.
+
+Si no es posible colocar la cantidad solicitada de habitaciones, informa de ello y devuelve un resultado válido con la cantidad realmente generada, o solicita una configuración menos restrictiva.
+
+Nunca fuerces una habitación dentro de un espacio ocupado para alcanzar una cantidad objetivo.
+
+## Separación entre habitaciones
+
+La separación debe ser configurable y compatible con el sistema de pasillos.
+
+No confundas el espacio de separación visual con una pared real. Si dos habitaciones deben estar separadas por un muro, ese muro debe existir en el modelo geométrico.
+
+Las habitaciones pueden compartir un límite únicamente cuando la configuración permita una pared compartida y el sistema de aberturas pueda representarla sin ambigüedad.
+
+## Identidad de las habitaciones
+
+Cada habitación debe incluir, como mínimo:
+
+- ID único.
+- Geometría.
+- Centro geométrico.
+- Superficie.
+- Tipo o categoría.
+- Nivel.
+- Conexiones.
+- Posiciones candidatas de acceso.
+- Lista de elementos interiores.
+- Estado de validación.
+
+No utilices el centro de una habitación como sustituto de su geometría real al decidir si una puerta es válida.
+
+---
+
+# 6. GRAFO DE CONEXIONES
+
+Crea un grafo explícito de habitaciones y regiones transitables.
+
+Cada habitación, región de pasillo o espacio independiente puede actuar como nodo.
+
+Las conexiones transitables deben actuar como aristas.
+
+Cada arista debe indicar:
+
+- ID de conexión.
+- Región de origen.
+- Región de destino.
+- Puerta o abertura asociada, si existe.
+- Coste de recorrido, si se utiliza.
+- Tipo de conexión.
+- Estado de validación.
+
+Una puerta física no debe confundirse con una conexión lógica: una abertura abierta puede conectar dos habitaciones sin tener una puerta con hoja.
+
+## Reglas obligatorias
+
+- Ninguna conexión puede referenciar regiones inexistentes.
+- No se permiten aristas duplicadas accidentalmente.
+- Toda puerta transitable debe corresponder a una conexión válida.
+- No se debe registrar una conexión si la geometría no permite atravesarla.
+- No se deben conectar regiones únicamente porque estén próximas.
+- Las conexiones entre niveles requieren escaleras, rampas, elevadores u otros elementos explícitos.
+- Una puerta cerrada con llave puede seguir siendo una conexión topológica, pero debe tener restricciones de acceso en el modelo de juego.
+- El sistema debe diferenciar entre conectividad física y accesibilidad bajo determinadas condiciones de juego.
+
+## Conectividad general
+
+Ofrece un modo de generación que garantice que todas las habitaciones principales pertenezcan a una única red de conexiones.
+
+Después de generar las conexiones, ejecuta BFS o DFS desde una región inicial para comprobar qué habitaciones son alcanzables.
+
+Si quedan habitaciones aisladas:
+
+1. Identifica los componentes desconectados.
+2. Busca conexiones geométricamente viables entre componentes.
+3. Calcula los corredores necesarios.
+4. Añade las conexiones que cumplan las restricciones.
+5. Vuelve a comprobar la conectividad.
+
+No agregues una conexión ficticia en el grafo para hacer pasar la validación.
+
+La conexión añadida debe existir también en la geometría del mapa.
+
+Permite configurar otros modos, como mazmorras con zonas aisladas, accesos secretos o secciones opcionales, pero documenta esas excepciones y asegúrate de que sean intencionales.
+
+---
+
+# 7. GENERACIÓN DE PASILLOS
+
+Implementa pasillos mediante algoritmos de recorrido espacial que respeten las habitaciones, las paredes y las restricciones de construcción.
+
+Se pueden combinar:
+
+- Recorridos recursivos aleatorizados.
+- Búsqueda A*.
+- Generación de árboles de expansión.
+- Conexiones adicionales para crear rutas alternativas.
+- Reglas de preferencia por tramos rectos.
+- Reglas de preferencia por giros.
+- Generación de corredores ortogonales.
+
+No hace falta utilizar todos los algoritmos en todos los modos.
+
+## A. Conexión inicial
+
+Conecta las habitaciones mediante un grafo de conexiones.
+
+Puedes usar un árbol de expansión para garantizar que todas las habitaciones principales estén conectadas con el mínimo número de conexiones estructurales.
+
+Si se utiliza un árbol de expansión mínimo, calcula los pesos a partir de distancias o costes geométricos adecuados.
+
+No confundas la conexión de los centros de las habitaciones con la construcción del pasillo real.
+
+## B. Cálculo de rutas
+
+Utiliza A* cuando resulte útil para conectar dos aberturas o regiones.
+
+La función de coste puede penalizar:
+
+- Pasar por paredes.
+- Invadir habitaciones no autorizadas.
+- Atravesar pasillos existentes cuando se quiera evitarlo.
+- Crear demasiados giros.
+- Crear corredores demasiado largos.
+- Generar conexiones redundantes.
+- Aproximarse demasiado a otras estructuras.
+
+El coste debe favorecer rutas válidas antes que rutas visualmente atractivas.
+
+Los obstáculos infranqueables deben tratarse como restricciones, no como simples penalizaciones que el algoritmo pueda ignorar si encuentra una ruta más barata.
+
+Para movimientos ortogonales, utiliza una heurística Manhattan compatible con los costes definidos. Si se permiten diagonales, adapta la heurística para mantener la admisibilidad.
+
+## C. Construcción del pasillo
+
+Una vez calculada la ruta:
+
+1. Comprueba que cada celda del recorrido sea válida.
+2. Comprueba los límites del mapa.
+3. Comprueba que el pasillo no atraviese habitaciones incompatibles.
+4. Comprueba el ancho del corredor.
+5. Calcula los límites y las paredes laterales.
+6. Identifica las aberturas de entrada y salida.
+7. Registra la geometría.
+8. Registra la conexión en el grafo.
+9. Vuelve a validar los sectores afectados.
+
+No dibujes un corredor simplemente como una línea entre dos habitaciones.
+
+La ruta debe corresponder a una secuencia real de celdas o regiones transitables.
+
+## D. Anchos de pasillo
+
+Admite diferentes anchos de corredor, según la escala del mapa.
+
+El ensanchamiento de un corredor debe comprobarse en todas las celdas que ocupa, no solamente en su eje central.
+
+Si una ruta tiene que ensancharse, valida el corredor completo para evitar que invada habitaciones o produzca paredes contradictorias.
+
+## E. Pasillos existentes
+
+Si un corredor llega a otro corredor:
+
+- Puede conectarse a él si está permitido.
+- Debe fusionarse correctamente con la geometría existente.
+- No debe crear paredes atravesando la intersección.
+- No debe dibujar segmentos de pared dentro del espacio transitable.
+- Debe actualizar las conexiones lógicas.
+
+Si no se permite una intersección en ese lugar, el algoritmo debe buscar otra ruta.
+
+---
+
+# 8. SISTEMA CRÍTICO DE PUERTAS
+
+Esta sección tiene prioridad máxima.
+
+Las puertas deben generarse a partir de aberturas válidas en paredes reales. Nunca deben colocarse únicamente por proximidad visual entre una habitación y un pasillo.
+
+## Principio fundamental
+
+**Toda puerta debe ocupar exactamente un segmento de pared identificado en el modelo geométrico, y ese segmento debe convertirse en una abertura válida sin destruir la geometría circundante.**
+
+La puerta no es una imagen superpuesta sobre una pared intacta.
+
+Debe existir una relación explícita entre:
+
+- La pared original.
+- La abertura.
+- La puerta física, si la hay.
+- La región situada a cada lado.
+- La conexión lógica.
+- La orientación.
+- El ancho de paso.
+- El estado de acceso.
+
+## A. Detección de candidatos
+
+Para encontrar una ubicación válida, busca segmentos de pared que separen regiones que deban poder conectarse.
+
+Un candidato válido debe cumplir todas estas condiciones:
+
+1. Existe un segmento de pared real.
+2. El segmento pertenece al perímetro de una habitación o a una pared de pasillo que admita accesos.
+3. Tiene longitud suficiente para el ancho de puerta configurado.
+4. No está ocupado por otra puerta incompatible.
+5. No se superpone con una esquina.
+6. No invade un segmento de pared que debe permanecer cerrado.
+7. Tiene espacio transitable válido a ambos lados.
+8. La región de cada lado está identificada correctamente.
+9. La apertura resultante no crea una conexión accidental con una tercera región.
+10. La geometría resultante es válida después de retirar el segmento correspondiente.
+
+No aceptes una ubicación basándote únicamente en que el centro de la puerta esté cerca del borde de una habitación.
+
+## B. Orientación
+
+La orientación debe derivarse del segmento de pared elegido.
+
+Una puerta situada en una pared norte-sur tendrá una orientación diferente a otra situada en una pared este-oeste.
+
+No determines la orientación a partir de la dirección del pasillo si contradice la orientación de la pared real.
+
+La hoja, el marco y el arco de apertura deben alinearse con esa orientación.
+
+## C. Ancho de la puerta
+
+Define el ancho en unidades de mapa o celdas, según el modelo.
+
+Una puerta debe ocupar una extensión continua y válida del muro.
+
+Si el ancho configurado requiere varios segmentos:
+
+- Todos deben pertenecer a la misma abertura.
+- Ninguno puede extenderse fuera del muro.
+- No pueden quedar fragmentos de pared atravesando la puerta.
+- No pueden eliminarse segmentos adicionales que pertenezcan a otras regiones.
+- La abertura debe permitir el paso según las reglas de navegación.
+
+Si no existe espacio suficiente, descarta ese candidato.
+
+## D. Puertas de habitaciones
+
+Una puerta de habitación debe estar en su perímetro.
+
+La abertura debe permitir entrar o salir sin atravesar una pared sólida.
+
+Si la puerta conecta con un pasillo, ese pasillo debe alcanzar realmente la abertura.
+
+Si conecta directamente con otra habitación, ambas regiones deben ser adyacentes a través de esa abertura.
+
+No permitas que una puerta se coloque en una pared exterior sin espacio transitable al otro lado, salvo que represente explícitamente una salida al exterior.
+
+## E. Puertas de pasillos
+
+Una puerta colocada en un corredor debe cumplir las reglas del tipo de pared que atraviesa.
+
+No permitas puertas en una pared lateral si al otro lado no existe una región válida.
+
+No permitas puertas sobre una intersección de corredores si la geometría no puede identificar correctamente las regiones conectadas.
+
+Si un pasillo termina en una pared, no dibujes una puerta que aparentemente lo conecte con una habitación que en realidad está separada.
+
+## F. Tipos de puertas
+
+Implementa un modelo de datos extensible para:
+
+- Abertura sin puerta.
+- Arco.
+- Puerta simple.
+- Puerta doble.
+- Puerta cerrada.
+- Puerta con llave.
+- Puerta secreta.
+- Puerta con trampa.
+- Rastrillo.
+- Puerta bloqueada.
+- Puerta especial definida por el usuario.
+
+Cada tipo debe tener propiedades explícitas.
+
+Una puerta con llave necesita un estado de bloqueo y una referencia a la llave o condición requerida cuando el juego utilice esa mecánica.
+
+Una puerta secreta debe tener propiedades de descubrimiento y una representación gráfica adecuada para el modo de visualización.
+
+Una puerta con trampa necesita un estado de activación y datos de la trampa, sin asumir que su mecanismo ya está implementado si solo se ha creado su representación visual.
+
+## G. Puertas dobles
+
+Las puertas dobles deben modelarse como una única abertura lógica con dos hojas visuales, o como una estructura equivalente inequívoca.
+
+No generes dos puertas independientes que ocupen el mismo espacio sin una relación explícita.
+
+## H. Puertas secretas
+
+Las puertas secretas pueden estar ocultas en una pared, pero deben seguir teniendo una abertura y una conexión lógica válidas.
+
+En el modo de mapa secreto, pueden representarse como pared normal o con una indicación especial.
+
+En el modo de mapa del director, deben poder identificarse.
+
+La ocultación visual nunca debe alterar accidentalmente la navegación interna.
+
+## I. Evitar duplicados
+
+Antes de registrar una puerta, comprueba:
+
+- Si existe otra puerta en el mismo segmento.
+- Si existe una abertura que ya conecta las mismas regiones.
+- Si el candidato se superpone parcialmente con otra puerta.
+- Si la puerta se solapa con una esquina o con un elemento estructural.
+- Si el tipo de puerta es compatible con el ancho disponible.
+
+Usa una identificación canónica del segmento o conjunto de segmentos ocupados para detectar duplicados.
+
+## J. Colocación de puertas aleatorias
+
+La aleatoriedad solo debe intervenir después de filtrar los candidatos válidos.
+
+Procedimiento obligatorio:
+
+1. Generar todas las ubicaciones candidatas.
+2. Validar geométricamente cada ubicación.
+3. Eliminar duplicados.
+4. Eliminar ubicaciones incompatibles.
+5. Ordenar o ponderar las candidatas según las reglas de diseño.
+6. Seleccionar una ubicación usando la semilla aleatoria.
+7. Reservar el segmento de pared.
+8. Crear la abertura.
+9. Crear la puerta, si corresponde.
+10. Crear o actualizar la conexión lógica.
+11. Ejecutar las validaciones posteriores.
+
+No selecciones primero una posición aleatoria y trates de corregirla después si resulta inválida.
+
+Si no hay candidatos válidos, no coloques ninguna puerta y registra el motivo.
+
+## K. Validación final de puertas
+
+El validador debe detectar como mínimo:
+
+- Puerta sin pared de origen.
+- Puerta que no coincide con su abertura.
+- Puerta situada fuera del perímetro de una región válida.
+- Puerta flotante.
+- Puerta superpuesta con otra.
+- Puerta en una esquina incompatible.
+- Puerta con orientación incorrecta.
+- Puerta con ancho inválido.
+- Puerta que no permite el paso geométrico esperado.
+- Puerta que conecta regiones incorrectas.
+- Puerta que no corresponde a una conexión lógica.
+- Abertura sin una conexión válida cuando la configuración exige conectividad.
+- Segmentos de pared que atraviesan una abertura.
+- Conexión lógica sin abertura geométrica.
+- Abertura que comunica accidentalmente regiones adicionales.
+
+Una puerta inválida debe provocar un error de validación explícito. No debe ocultarse el problema modificando el dibujo.
+
+---
+
+# 9. CONSTRUCCIÓN Y VALIDACIÓN DE PAREDES
+
+El sistema de paredes debe derivarse de los límites entre regiones.
+
+Para cada límite entre dos celdas adyacentes:
+
+1. Identifica la región de cada lado.
+2. Determina si el límite debe contener una pared.
+3. Comprueba si existe una abertura autorizada.
+4. Genera el segmento de pared correspondiente.
+5. Registra sus propiedades geométricas.
+
+No generes dos paredes superpuestas sobre el mismo límite.
+
+No dibujes paredes internas entre dos celdas que pertenecen al mismo espacio transitable, salvo que exista un elemento estructural explícito.
+
+No elimines una pared solo porque dos habitaciones estén cerca.
+
+Una pared compartida entre habitaciones debe mantenerse cerrada excepto donde exista una abertura autorizada.
+
+Los límites exteriores deben ser coherentes con la configuración: paredes, salidas o límites abiertos explícitos.
+
+## Unión de segmentos
+
+Los segmentos deben unirse de manera consistente.
+
+Evita:
+
+- Pequeños huecos en las esquinas.
+- Segmentos que sobresalen de los límites.
+- Intersecciones en T mal resueltas.
+- Paredes que atraviesan puertas.
+- Segmentos de longitud cero.
+- Fragmentos duplicados.
+- Desalineación entre paredes y cuadrícula.
+
+Los detalles de renderizado, como el grosor de línea o los remates, deben resolverse sin cambiar la geometría lógica.
+
+---
+
+# 10. GENERACIÓN DE CAVERNAS
+
+Implementa un modo independiente para cavernas naturales.
+
+Puedes utilizar autómatas celulares con reglas configurables.
+
+Proceso general:
+
+1. Crear una cuadrícula inicial aleatoria de paredes y espacios vacíos.
+2. Aplicar reglas vecinales.
+3. Repetir el suavizado durante un número configurable de iteraciones.
+4. Identificar las regiones transitables.
+5. Eliminar o conservar regiones pequeñas según la configuración.
+6. Conectar las regiones que deban ser accesibles.
+7. Calcular las paredes y los límites.
+8. Identificar candidatos de conexión.
+9. Colocar puertas únicamente donde tenga sentido estructural.
+10. Validar la geometría final.
+
+No fuerces puertas rectangulares en cualquier punto de una caverna irregular.
+
+Cuando una conexión necesite una abertura artificial, construye primero una zona de transición geométricamente válida.
+
+Mantén separados los algoritmos de habitaciones rectangulares y cavernas, pero permite que ambos utilicen el mismo modelo de regiones, conexiones, puertas y validación cuando resulte apropiado.
+
+---
+
+# 11. GENERACIÓN DE ELEMENTOS INTERIORES
+
+Permite colocar elementos decorativos y funcionales:
+
+- Mesas.
+- Sillas.
+- Camas.
+- Estanterías.
+- Columnas.
+- Cofres.
+- Altares.
+- Trampas.
+- Escombros.
+- Estatuas.
+- Pozos.
+- Escaleras.
+- Fuentes.
+- Elementos definidos por el usuario.
+
+Cada elemento debe tener:
+
+- ID.
+- Posición.
+- Dimensiones.
+- Orientación.
+- Categoría.
+- Región o habitación asociada.
+- Huella de ocupación.
+- Propiedades de navegación.
+- Reglas de colocación.
+
+## Reglas de colocación
+
+No coloques objetos:
+
+- Fuera del mapa.
+- Encima de paredes incompatibles.
+- Encima de puertas o aberturas.
+- En el espacio de giro reservado para una puerta, cuando corresponda.
+- Bloqueando una salida obligatoria.
+- Superpuestos con otros objetos sólidos.
+- En zonas que no admitan ese tipo de elemento.
+
+Permite configurar si los objetos bloquean el paso, son decorativos o admiten tránsito.
+
+Utiliza el tamaño real del objeto en la comprobación de colisiones, no solamente su punto central.
+
+Los objetos decorativos no deben bloquear accidentalmente las rutas principales.
+
+Si una habitación necesita conservar una ruta de paso, valida que exista al menos una ruta transitable entre sus accesos.
+
+---
+
+# 12. ESCALERAS Y MÚLTIPLES NIVELES
+
+Si se admite más de un nivel, cada nivel debe tener su propia geometría y su propia topología.
+
+Las escaleras y transiciones deben incluir:
+
+- Nivel de origen.
+- Nivel de destino.
+- Posición.
+- Tipo de transición.
+- Dirección, cuando corresponda.
+- Reglas de acceso.
+- Identificador de conexión.
+
+No conectes niveles diferentes únicamente porque las coordenadas coincidan.
+
+Una escalera debe tener un punto transitable en ambos niveles y una transición lógica explícita.
+
+El validador debe detectar escaleras huérfanas, destinos inexistentes y transiciones que no coincidan con el modelo geométrico.
+
+---
+
+# 13. VALIDACIÓN AUTOMÁTICA OBLIGATORIA
+
+Implementa un validador central que se ejecute después de generar un mapa y después de cada modificación estructural.
+
+El validador debe producir una lista de errores, advertencias e información de diagnóstico.
+
+Cada problema debe indicar:
+
+- Código de error.
+- Severidad.
+- Entidad afectada.
+- Coordenadas, cuando correspondan.
+- Descripción comprensible.
+- Causa probable.
+- Acción correctiva sugerida.
+
+## Categorías de validación
+
+### A. Geometría
+
+- Entidades fuera de los límites.
+- Habitaciones superpuestas.
+- Paredes duplicadas.
+- Paredes de longitud cero.
+- Segmentos desalineados.
+- Aberturas inválidas.
+- Objetos superpuestos.
+- Geometría inconsistente.
+
+### B. Puertas
+
+- Puertas sin abertura.
+- Aberturas sin conexión cuando sea obligatorio.
+- Puertas fuera de un muro válido.
+- Puertas duplicadas.
+- Orientaciones incorrectas.
+- Anchos imposibles.
+- Puertas que conectan regiones equivocadas.
+
+### C. Conectividad
+
+- Habitaciones aisladas.
+- Pasillos desconectados.
+- Conexiones lógicas sin recorrido físico.
+- Regiones transitables inaccesibles.
+- Escaleras sin destino.
+- Caminos bloqueados por objetos.
+
+### D. Navegación
+
+Ejecuta una búsqueda de caminos sobre la representación transitable del mapa.
+
+Verifica que las rutas calculadas no atraviesen:
+
+- Paredes sólidas.
+- Objetos bloqueantes.
+- Celdas fuera del mapa.
+- Puertas cerradas cuando el modo de navegación exige acceso inmediato.
+
+Distingue entre una ruta físicamente existente y una ruta actualmente accesible bajo las reglas del juego.
+
+### E. Renderizado
+
+Comprueba que todas las entidades del modelo puedan representarse correctamente.
+
+Detecta referencias inexistentes, coordenadas inválidas y recursos gráficos faltantes.
+
+## Política de publicación del mapa
+
+Un mapa no debe considerarse válido si presenta errores críticos.
+
+Si una validación falla:
+
+1. Intenta una reparación segura cuando exista una solución inequívoca.
+2. Vuelve a ejecutar las pruebas afectadas.
+3. Si no puede repararse, rechaza esa generación o solicita otra.
+4. Registra el motivo del fallo.
+5. No ocultes el error para que el mapa parezca correcto.
+
+Las advertencias no críticas pueden permitirse según la configuración, pero deben quedar registradas.
+
+---
+
+# 14. SISTEMA DE ALEATORIEDAD REPRODUCIBLE
+
+Implementa un generador de números pseudoaleatorios con semilla.
+
+La misma configuración, la misma semilla y la misma versión del algoritmo deben producir el mismo resultado lógico, salvo que exista una razón técnica documentada para que no sea así.
+
+No utilices fuentes de aleatoriedad independientes y sin control en diferentes partes del generador.
+
+Utiliza un flujo aleatorio controlado, o flujos derivados de manera determinista para cada subsistema.
+
+Registra:
+
+- Semilla.
+- Configuración completa.
+- Versión del algoritmo.
+- Versión del formato de datos.
+- Parámetros relevantes de generación.
+
+Incluye las funciones:
+
+- Generar mapa.
+- Regenerar con la misma semilla.
+- Generar un mapa nuevo con otra semilla.
+- Copiar semilla.
+- Reproducir una generación guardada.
+
+Si una generación falla, permite reproducirla con la misma configuración y semilla para facilitar la depuración.
+
+---
+
+# 15. SISTEMA DE CONFIGURACIÓN Y ESTILOS
+
+Separa las reglas geométricas del estilo visual.
+
+El mismo mapa lógico debe poder representarse mediante diferentes temas sin alterar las posiciones de las habitaciones, la topología ni la ubicación de las puertas.
+
+Incluye estilos visuales configurables, por ejemplo:
+
+- Plano clásico en blanco y negro.
+- Pergamino de fantasía.
+- Piedra y mazmorra oscura.
+- Plano arquitectónico.
+- Mapa minimalista.
+- Mapa para impresión.
+- Mapa con cuadrícula para VTT.
+- Mapa sin cuadrícula.
+
+Cada estilo debe modificar únicamente propiedades visuales, salvo que el usuario solicite explícitamente una transformación estructural.
+
+Los temas deben disponer de reglas consistentes para paredes, puertas, suelos, sombras, contornos y elementos interiores.
+
+Los recursos gráficos deben ser originales, de dominio público o estar correctamente licenciados para el uso comercial previsto.
+
+No uses imágenes extraídas de otros generadores o paquetes comerciales sin autorización.
+
+---
+
+# 16. INTERFAZ DE USUARIO PROFESIONAL
+
+La aplicación debe resultar clara para usuarios que no sepan programar.
+
+Incluye, como mínimo:
+
+## Panel de configuración
+
+- Dimensiones del mapa.
+- Número de habitaciones.
+- Tamaños de habitación.
+- Tipos de habitaciones.
+- Tipos y anchos de pasillos.
+- Densidad de conexiones.
+- Tipos de puertas.
+- Probabilidad de elementos especiales.
+- Número de niveles.
+- Semilla aleatoria.
+- Estilo visual.
+- Cuadrícula y escala.
+- Opciones de conectividad.
+
+## Área principal
+
+- Vista del mapa.
+- Zoom.
+- Desplazamiento.
+- Ajustar al área disponible.
+- Cuadrícula configurable.
+- Selección de entidades.
+- Información de la habitación seleccionada.
+- Identificación visual de puertas y conexiones.
+- Indicadores de error.
+
+## Edición manual
+
+Permite, según el alcance implementado:
+
+- Seleccionar una habitación.
+- Moverla o cambiar su tamaño.
+- Añadir o eliminar habitaciones.
+- Crear y eliminar pasillos.
+- Cambiar una puerta.
+- Añadir una puerta a una abertura válida.
+- Eliminar una puerta.
+- Modificar propiedades de una entidad.
+- Añadir elementos interiores.
+- Deshacer y rehacer cambios.
+
+Toda modificación manual debe pasar por el mismo sistema de validación que la generación automática.
+
+Si una modificación invalida otras entidades, informa del problema y ofrece una acción segura. No permitas que una edición deje el modelo en un estado corrupto.
+
+## Panel de diagnóstico
+
+Incluye una vista que muestre:
+
+- Cantidad de habitaciones.
+- Cantidad de conexiones.
+- Cantidad de puertas.
+- Regiones desconectadas.
+- Errores críticos.
+- Advertencias.
+- Estado general de validación.
+- Tiempo de generación.
+
+No muestres un indicador de éxito si el mapa no pasó las validaciones obligatorias.
+
+---
+
+# 17. RENDIMIENTO Y ESCALABILIDAD
+
+El generador debe ser eficiente en mapas pequeños y medianos y degradarse de forma controlada en mapas grandes.
+
+Implementa:
+
+- Límites configurables de tamaño.
+- Límites de intentos de generación.
+- Protección frente a bucles infinitos.
+- Límites de memoria razonables.
+- Cancelación de operaciones largas cuando sea posible.
+- Actualización eficiente del renderizado.
+- Validación incremental cuando sea segura.
+- Manejo de errores.
+- Mensajes comprensibles si una configuración resulta imposible.
+
+Evita volver a generar el mapa completo cuando solo se modifica un atributo visual.
+
+Sin embargo, cuando se cambie una pared o una puerta, invalida todas las comprobaciones geométricas y de conectividad que puedan haberse visto afectadas.
+
+No optimices prematuramente a costa de la corrección.
+
+---
+
+# 18. PRUEBAS AUTOMATIZADAS
+
+Las pruebas son obligatorias. No basta con generar varios mapas y mirarlos visualmente.
+
+Crea una suite automatizada que se pueda ejecutar de forma repetible.
+
+## A. Pruebas unitarias
+
+Comprueba:
+
+- Conversión de coordenadas.
+- Detección de colisiones.
+- Comprobación de límites.
+- Identificación de paredes.
+- Creación de aberturas.
+- Orientación de puertas.
+- Cálculo de rutas.
+- Conectividad de grafos.
+- Detección de duplicados.
+- Validación de escaleras.
+- Persistencia de datos.
+- Reproducción por semilla.
+
+## B. Casos específicos de puertas
+
+Incluye pruebas que verifiquen expresamente:
+
+1. Una puerta en el centro de una pared válida.
+2. Una puerta en una pared demasiado corta.
+3. Una puerta en una esquina.
+4. Una puerta fuera de una habitación.
+5. Una puerta sin pared.
+6. Dos puertas en el mismo segmento.
+7. Dos puertas parcialmente superpuestas.
+8. Una puerta cuyo ancho supera el espacio disponible.
+9. Una puerta entre regiones que no son adyacentes.
+10. Una puerta que conecta con un corredor desconectado.
+11. Una puerta en una pared compartida.
+12. Una puerta secreta.
+13. Una puerta doble.
+14. Una puerta con llave.
+15. Una abertura sin hoja.
+16. Un corredor que termina en una pared.
+17. Un pasillo que llega a una puerta con orientación incorrecta.
+18. Una puerta junto a una intersección.
+19. Una puerta en una salida exterior autorizada.
+20. Una puerta colocada después de mover una habitación.
+
+Cada caso debe verificar tanto el modelo lógico como la geometría final.
+
+## C. Pruebas de propiedades
+
+Genera cientos o miles de mapas con semillas diferentes, dentro de límites de ejecución razonables.
+
+Comprueba automáticamente invariantes como:
+
+- Ninguna entidad supera los límites del mapa.
+- Ninguna habitación viola las restricciones de solapamiento.
+- Ninguna puerta carece de abertura válida.
+- Ninguna abertura contiene paredes incompatibles.
+- Ninguna conexión referencia entidades inexistentes.
+- Ningún corredor viola sus restricciones geométricas.
+- Ningún elemento bloqueante invade una zona reservada.
+- La conectividad cumple el modo de generación seleccionado.
+- La misma semilla produce el mismo resultado lógico.
+
+No basta con probar una sola semilla.
+
+Incluye mapas pequeños, mapas grandes, configuraciones extremas y configuraciones con pocas soluciones posibles.
+
+## D. Pruebas de regresión
+
+Cuando encuentres un error, crea una prueba que reproduzca ese caso.
+
+Una corrección no debe reintroducir errores previamente solucionados.
+
+Guarda ejemplos de mapas problemáticos como casos de regresión.
+
+## E. Pruebas de integración
+
+Comprueba el flujo completo:
+
+1. Generar mapa.
+2. Validarlo.
+3. Editar una habitación.
+4. Actualizar las paredes.
+5. Revalidar las puertas.
+6. Actualizar las conexiones.
+7. Exportar.
+8. Importar el archivo exportado.
+9. Comparar el modelo lógico original con el reconstruido.
+
+---
+
+# 19. IMPORTACIÓN, EXPORTACIÓN Y PERSISTENCIA
+
+Implementa un formato de datos versionado que permita guardar el mapa completo.
+
+Debe conservar:
+
+- Geometría.
+- Habitaciones.
+- Pasillos.
+- Paredes y aberturas.
+- Puertas y propiedades.
+- Conexiones.
+- Elementos interiores.
+- Niveles.
+- Semilla.
+- Configuración.
+- Metadatos relevantes.
+
+La exportación e importación deben preservar la topología del mapa, no solamente su apariencia.
+
+Al importar un archivo:
+
+1. Comprueba que el formato sea reconocido.
+2. Valida los datos.
+3. Verifica los identificadores y las referencias.
+4. Detecta geometría inválida.
+5. Rechaza archivos corruptos con mensajes claros.
+6. No sobrescribas silenciosamente el trabajo actual.
+7. Aplica migraciones explícitas cuando se actualice el formato.
+
+## Exportaciones gráficas
+
+Implementa, según las capacidades del proyecto:
+
+- PNG de alta resolución.
+- SVG cuando resulte adecuado.
+- JSON del modelo editable.
+- PDF para impresión, si el entorno permite generar archivos fiables.
+
+Permite exportar con o sin cuadrícula, con o sin etiquetas y con distintos estilos visuales.
+
+No exportes mapas con errores críticos como si fueran resultados válidos.
+
+Los formatos de imagen y el formato lógico deben tener funciones diferenciadas: una imagen no debe presentarse como un archivo editable equivalente al modelo completo.
+
+---
+
+# 20. SEGURIDAD Y CALIDAD COMERCIAL
+
+El producto debe seguir buenas prácticas de desarrollo de software.
+
+Incluye:
+
+- Gestión segura de errores.
+- Validación de entradas.
+- Protección frente a archivos malformados.
+- Límites de recursos.
+- Dependencias justificadas y actualizadas.
+- Licencias compatibles con la distribución comercial.
+- Ausencia de claves privadas en el código.
+- Documentación de instalación.
+- Documentación de uso.
+- Registro de versiones.
+- Compatibilidad con los navegadores objetivo.
+- Diseño adaptable a distintos tamaños de pantalla.
+- Accesibilidad básica para controles y formularios.
+
+Si utiliza almacenamiento local, informa de sus limitaciones y proporciona una forma de exportar el trabajo.
+
+Si implementa cuentas, sincronización en la nube, pagos o servicios externos, diseña esas funcionalidades como módulos independientes y no afirmes que están disponibles si no se han construido y probado.
+
+No incorpores dependencias innecesarias ni sistemas de seguimiento ocultos.
+
+Antes de comercializarlo, revisa las licencias del código, las dependencias, las tipografías y los recursos gráficos.
+
+No copies el código fuente de Donjon ni sus recursos protegidos para crear el producto. Utiliza los principios generales de los algoritmos y desarrolla una implementación original. La compatibilidad con las licencias de terceros debe quedar documentada.
+
+---
+
+# 21. FUNCIONALIDADES AVANZADAS
+
+Una vez que el generador básico sea estable, prepara una arquitectura extensible para incorporar:
+
+- Habitaciones con formas irregulares.
+- Mazmorras con varios niveles.
+- Cavernas orgánicas.
+- Puertas secretas.
+- Pasillos ocultos.
+- Conexiones alternativas.
+- Zonas opcionales.
+- Habitaciones especiales.
+- Generación temática.
+- Distribución de tesoros.
+- Trampas y encuentros.
+- Nombres y descripciones de habitaciones.
+- Etiquetas para el director de juego.
+- Modo de mapa para jugadores.
+- Modo de mapa para el director.
+- Integración con VTT.
+- Exportación con cuadrículas y escalas personalizadas.
+- Reglas de accesibilidad y navegación para criaturas de diferentes tamaños.
+
+Estas funciones no deben introducirse antes de que el núcleo geométrico esté validado.
+
+Cada nueva función debe respetar la arquitectura central y disponer de sus propias pruebas.
+
+---
+
+# 22. CRITERIOS DE ACEPTACIÓN
+
+El proyecto solo puede considerarse terminado cuando se cumplan los siguientes criterios.
+
+### Generación
+
+- El usuario puede generar mapas con diferentes configuraciones.
+- La generación respeta los límites y restricciones.
+- Las semillas reproducen los resultados.
+- Las configuraciones imposibles no producen bucles infinitos.
+- Los errores se comunican claramente.
+
+### Habitaciones y pasillos
+
+- Las habitaciones respetan las reglas de colocación.
+- Los pasillos tienen una geometría válida.
+- Las conexiones lógicas corresponden a caminos reales.
+- La conectividad cumple el modo seleccionado.
+- Los corredores no atraviesan paredes u obstáculos incompatibles.
+
+### Puertas
+
+- Todas las puertas corresponden a aberturas reales.
+- Todas las puertas tienen orientación correcta.
+- Ninguna puerta está flotando o duplicada.
+- Ninguna pared atraviesa una abertura.
+- Las conexiones a ambos lados de cada puerta son correctas.
+- Los tipos especiales conservan sus propiedades.
+- El renderizado coincide con el modelo lógico.
+
+### Validación
+
+- Los errores críticos se detectan automáticamente.
+- Los casos de prueba de puertas se ejecutan sin fallos.
+- Las pruebas de propiedades no detectan violaciones de invariantes en las ejecuciones de aceptación.
+- Los errores descubiertos quedan cubiertos por pruebas de regresión.
+- Los mapas inválidos no se presentan como válidos.
+
+### Interfaz y exportación
+
+- La interfaz es funcional.
+- Los controles modifican realmente el modelo.
+- Los cambios se reflejan correctamente en la vista.
+- Los mapas pueden guardarse y recuperarse.
+- Las exportaciones se pueden abrir y representan el resultado esperado.
+- Los archivos inválidos se rechazan de manera segura.
+
+### Entrega
+
+- El proyecto se instala y ejecuta siguiendo las instrucciones.
+- No hay errores críticos conocidos sin documentar.
+- No existen botones principales que simulen funciones inexistentes.
+- Las pruebas y los resultados están documentados.
+- La arquitectura permite añadir funciones sin reescribir el núcleo.
+
+No declares que se cumplieron estos criterios sin evidencia de ejecución.
+
+---
+
+# 23. ORDEN DE IMPLEMENTACIÓN
+
+Trabaja en estas fases, en este orden:
+
+**Fase 1 — Núcleo geométrico**
+
+Implementa la matriz, las coordenadas, las regiones, las paredes, las aberturas y el modelo lógico. Añade pruebas básicas de geometría.
+
+**Fase 2 — Habitaciones**
+
+Implementa colocación, restricciones, límites y detección de colisiones.
+
+**Fase 3 — Grafo y pasillos**
+
+Implementa conexiones, búsqueda de caminos, creación de corredores y comprobación de conectividad.
+
+**Fase 4 — Puertas**
+
+Implementa la detección de candidatos, la creación de aberturas, los tipos de puerta y todas las validaciones específicas.
+
+**Fase 5 — Validador integral**
+
+Implementa pruebas geométricas, topológicas y de navegación. Añade pruebas de propiedades y regresión.
+
+**Fase 6 — Renderizado**
+
+Dibuja paredes, habitaciones, corredores, puertas y elementos interiores a partir del modelo validado.
+
+**Fase 7 — Interfaz**
+
+Añade controles de generación, edición, selección, zoom, estilos y diagnóstico.
+
+**Fase 8 — Persistencia y exportación**
+
+Implementa guardado, importación, exportación y versionado de datos.
+
+**Fase 9 — Robustez**
+
+Ejecuta pruebas con múltiples semillas y configuraciones extremas. Corrige errores y mide rendimiento.
+
+**Fase 10 — Preparación comercial**
+
+Revisa UX, accesibilidad, licencias, documentación, instalación y distribución.
+
+No pases a una fase posterior si la anterior presenta errores críticos.
+
+---
+
+# 24. INFORME FINAL OBLIGATORIO
+
+Al terminar, entrega un informe que contenga:
+
+1. Arquitectura implementada.
+2. Algoritmos utilizados y motivos de elección.
+3. Estructura de archivos.
+4. Funcionalidades terminadas.
+5. Funcionalidades que todavía no están implementadas.
+6. Pruebas ejecutadas y resultados.
+7. Cantidad de mapas y semillas probadas.
+8. Errores detectados y correcciones realizadas.
+9. Limitaciones conocidas.
+10. Instrucciones para ejecutar y construir el proyecto.
+11. Procedimiento para reproducir una generación mediante su semilla.
+12. Formatos de importación y exportación disponibles.
+13. Dependencias y licencias relevantes.
+14. Riesgos pendientes antes de una distribución comercial.
+
+Distingue siempre entre pruebas realmente ejecutadas y pruebas que solamente están previstas.
+
+---
+
+## INSTRUCCIÓN FINAL
+
+Comienza inspeccionando el proyecto y definiendo el plan técnico.
+
+Después, implementa el producto completo de forma incremental.
+
+**No priorices la cantidad de funciones por encima de la corrección. No coloques puertas mediante aproximaciones visuales. No permitas que el renderizado contradiga la geometría. No ocultes errores de conectividad.**
+
+La arquitectura debe garantizar que cada puerta sea una abertura geométricamente válida, cada pasillo tenga una ruta real, cada conexión lógica corresponda a una conexión física y cada mapa publicado haya pasado las validaciones obligatorias.
+
+El resultado debe ser un generador procedural de mazmorras original, robusto, extensible, verificable y preparado para evolucionar hacia un producto comercial profesional.

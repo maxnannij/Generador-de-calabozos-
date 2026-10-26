@@ -1,0 +1,6 @@
+{
+  "name": "DungeonForge Pro",
+  "description": "Generador procedural de mazmorras 2D de calidad comercial para juegos de rol y VTT con validación geométrica estricta, editor interactivo y exportación profesional.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
